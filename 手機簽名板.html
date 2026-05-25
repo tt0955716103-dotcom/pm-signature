@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>設備PM手機簽名板</title>
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, "Microsoft JhengHei", sans-serif;
+        background: #f4f6f8;
+        color: #222;
+    }
+    .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 16px;
+    }
+    h1 {
+        font-size: 22px;
+        text-align: center;
+        margin: 12px 0 16px;
+    }
+    .card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 14px;
+        box-shadow: 0 2px 10px rgba(0,0,0,.08);
+        margin-bottom: 12px;
+    }
+    label {
+        font-weight: bold;
+        display: block;
+        margin: 8px 0 6px;
+    }
+    input, select {
+        width: 100%;
+        box-sizing: border-box;
+        height: 42px;
+        border: 1px solid #bbb;
+        border-radius: 8px;
+        padding: 8px;
+        font-size: 16px;
+    }
+    canvas {
+        width: 100%;
+        height: 260px;
+        background: #fff;
+        border: 2px solid #222;
+        border-radius: 8px;
+        touch-action: none;
+        display: block;
+    }
+    .hint {
+        font-size: 14px;
+        color: #555;
+        line-height: 1.5;
+    }
+    .btns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+    }
+    button {
+        height: 46px;
+        border: 0;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .save { background: #1f6feb; color: #fff; }
+    .clear { background: #e5e7eb; color: #111; }
+    .footer {
+        font-size: 13px;
+        color: #666;
+        text-align: center;
+        margin-top: 14px;
+    }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>設備PM手機簽名板</h1>
+
+    <div class="card">
+        <label>簽名人姓名</label>
+        <input id="signerName" placeholder="例如：達拉">
+
+        <label>簽名用途</label>
+        <select id="signRole">
+            <option value="產線確認">產線確認</option>
+            <option value="制工確認">制工確認</option>
+            <option value="其他">其他</option>
+        </select>
+
+        <p class="hint">
+            請在下方白框內用手指簽名。完成後按「下載簽名 PNG」。<br>
+            下載後請將圖片放到 Excel 同資料夾的 <b>Signatures</b> 資料夾。
+        </p>
+    </div>
+
+    <div class="card">
+        <canvas id="pad"></canvas>
+        <div class="btns">
+            <button class="clear" onclick="clearPad()">清除重簽</button>
+            <button class="save" onclick="savePNG()">下載簽名 PNG</button>
+        </div>
+    </div>
+
+    <div class="footer">
+        檔名格式：姓名_用途_日期時間.png<br>
+        若要給 Excel 自動抓固定簽名，請另存一份改名為：姓名.png
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById("pad");
+const ctx = canvas.getContext("2d");
+
+let drawing = false;
+let lastX = 0;
+let lastY = 0;
+
+function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#000";
+}
+
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    if (e.touches && e.touches.length > 0) {
+        return {
+            x: e.touches[0].clientX - rect.left,
+            y: e.touches[0].clientY - rect.top
+        };
+    }
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
+}
+
+function startDraw(e) {
+    e.preventDefault();
+    drawing = true;
+    const p = getPos(e);
+    lastX = p.x;
+    lastY = p.y;
+}
+
+function draw(e) {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x;
+    lastY = p.y;
+}
+
+function endDraw(e) {
+    e.preventDefault();
+    drawing = false;
+}
+
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mousemove", draw);
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("mouseleave", endDraw);
+
+canvas.addEventListener("touchstart", startDraw, {passive:false});
+canvas.addEventListener("touchmove", draw, {passive:false});
+canvas.addEventListener("touchend", endDraw, {passive:false});
+
+function clearPad() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function safeName(s) {
+    return String(s || "")
+        .trim()
+        .replace(/[\\\/:\*\?"<>\|]/g, "_")
+        .replace(/\s+/g, "");
+}
+
+function nowString() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return d.getFullYear()
+        + pad(d.getMonth()+1)
+        + pad(d.getDate())
+        + "_"
+        + pad(d.getHours())
+        + pad(d.getMinutes());
+}
+
+function savePNG() {
+    const name = safeName(document.getElementById("signerName").value);
+    const role = safeName(document.getElementById("signRole").value);
+
+    if (!name) {
+        alert("請先輸入簽名人姓名");
+        return;
+    }
+
+    const link = document.createElement("a");
+    link.download = name + "_" + role + "_" + nowString() + ".png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+}
+</script>
+</body>
+</html>
